@@ -1,0 +1,3 @@
+# dot env
+dotenv
+requests
