@@ -5,16 +5,52 @@ import { haversine } from "./utils/haversine";
 import { heading } from "./utils/heading";
 import ReactMap from "react-map-gl";
 import maplibre from "maplibre-gl";
+import { useRef } from "react";
+import "maplibre-gl/dist/maplibre-gl.css";
+import TextField from "@mui/material/TextField";
+import Autocomplete from "@mui/material/Autocomplete";
+import Button from "@mui/material/Button";
+import Box from "@mui/material/Box";
+import styled from "@emotion/styled";
+const RowBox = styled(Box)`
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  gap: 1rem;
+  justify-content: space-evenly;
+  @media (max-width: 800px) {
+    flex-direction: column;
+  }
+`;
+function GuessBox({ options, onGuess }) {
+  return (
+    <Autocomplete
+      disablePortal
+      id="combo-box-demo"
+      options={options}
+      sx={{ width: '100%' }}
+      renderOption={(props, option) => <li {...props}>{option.CityCountry}</li>}
+      getOptionKey={(option) => option.CityCountry}
+      getOptionLabel={(option) => option.CityCountry}
+      onChange={(_e, value) => {
+        onGuess(value);
+      }}
+      renderInput={(params) => <TextField {...params} label="City" />}
+    />
+  );
+}
 
 async function init() {
-  console.log("init");
   const citiesData = await fetch("/geocoded_cities.csv").then((r) => r.text());
-  const cities = papa.parse(citiesData, {
-    header: true,
-    dynamicTyping: true,
-  }).data.sort((a, b) => a.CityCountry - b.CityCountry)
+  const cities = papa
+    .parse(citiesData, {
+      header: true,
+      dynamicTyping: true,
+    })
+    .data.sort((a, b) => a.CityCountry - b.CityCountry);
 
   const chosen = cities[Math.floor(Math.random() * cities.length)];
+
   return {
     cities,
     chosen,
@@ -34,7 +70,7 @@ function App() {
   return (
     <>
       <h1>gridl</h1>
-      <p className="read-the-docs">figure it out</p>
+      <p className="read-the-docs">Guess the city</p>
       {Object.keys(chosen).length > 0 ? (
         <Game citiesData={citiesData} chosen={chosen} />
       ) : (
@@ -45,7 +81,7 @@ function App() {
 }
 
 function Game({ citiesData, chosen }) {
-  const [selectedGuess, setSelectedGuess] = useState({});
+  const [selectedGuess, setSelectedGuess] = useState(citiesData[0]);
   const [guesses, setGuesses] = useState([]);
 
   const handleGuess = () => {
@@ -65,15 +101,8 @@ function Game({ citiesData, chosen }) {
       {!!correct && "You win!"}
       {!!lost && "You lose!"}
       {!!(correct || lost) && <h3>{chosen.CityCountry}</h3>}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "row",
-          width: "100%",
-          justifyContent: "space-evenly",
-        }}
-      >
-        <div>
+      <RowBox>
+        <div style={{flex:1}}>
           <div>
             {guesses.map((guess) => {
               const distance = haversine(
@@ -83,10 +112,10 @@ function Game({ citiesData, chosen }) {
                 guess.longitude
               );
               const direction = heading(
-                chosen.latitude,
-                chosen.longitude,
                 guess.latitude,
-                guess.longitude
+                guess.longitude,
+                chosen.latitude,
+                chosen.longitude
               );
               return (
                 <>
@@ -99,23 +128,38 @@ function Game({ citiesData, chosen }) {
                     }}
                   >
                     <h4>{guess.CityCountry}</h4>
-                    <p>{Math.round(distance)} km</p>
+                    <p>{Math.round(distance).toLocaleString()} km</p>
                     <div
                       style={{
                         display: "flex",
                         flexDirection: "row",
+                        // center
+                        alignItems: "center",
+                        gap: "0.5rem",
                       }}
                     >
+                      {/* div centers child */}
                       <div
                         style={{
-                          fontSize: "1rem",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: "0.5rem",
                           width: "2rem",
                           height: "2rem",
-                          transform: `rotate(${direction}deg)`,
                         }}
                       >
-                        ↑
-                      </div>
+                        <div
+                          style={{
+                            fontSize: "1rem",
+                            width: "1rem",
+                            height: "1rem",
+                            transform: `rotate(${direction}deg)`,
+                          }}
+                        >
+                          ↑
+                        </div>
+                      </div>{" "}
                       <p>{Math.round(direction)} degrees</p>
                     </div>
                   </div>
@@ -125,45 +169,56 @@ function Game({ citiesData, chosen }) {
             })}
           </div>
           {/* input with list of citiesDAta */}
-          <select onChange={handleSelect} disabled={correct || lost}>
-            {citiesData.map((city) => (
-              <option>{city.CityCountry}</option>
-            ))}
-          </select>
-          <button onClick={handleGuess}>guess</button>
+          <GuessBox options={citiesData} onGuess={setSelectedGuess} />
+          <Button onClick={handleGuess} fullWidth variant="contained" my={2}>
+            Guess
+          </Button>
         </div>
-        <div>
+        <div style={{flex:1}}>
           <GameMap chosen={chosen} />
         </div>
-      </div>
+      </RowBox>
     </div>
   );
 }
 
 function GameMap({ chosen }) {
+  const mapRef = useRef(null);
   const cleanBounds = chosen.bounds.replace(/'/g, '"');
+  const hasZoomedIn = useRef(false);
+
   let arrBounds = Object.entries(JSON.parse(cleanBounds)).map(
     ([key, value]) => {
       const val = Object.values(value);
       return [val[1], val[0]];
     }
   );
+
+  const handleMapLoad = (_e) => {
+    const mapCenter = mapRef.current.getCenter();
+    const mapZoom = mapRef.current.getZoom();
+    // mapRef.current.flyTo({
+    //   center: [mapCenter.lng, mapCenter.lat],
+    //   zoom: mapZoom * 1
+    // });
+  };
+
   return (
     <div
       style={{
         width: "100%",
         position: "relative",
-        pointerEvents: "none",
         height: "60vh",
         minWidth: "40vw",
+        pointerEvents: "none",
       }}
     >
       <ReactMap
+        ref={mapRef}
         mapLib={maplibre}
         bounds={arrBounds}
-        minZoom={7}
+        onLoad={handleMapLoad}
         mapStyle="https://api.maptiler.com/maps/8a6fa984-7aa9-4b0c-990d-a89d737d936f/style.json?key=iqzk1Sq43ATpdEUCOQOQ"
-        mapboxAccessToken={import.meta.env.VITE_APP_MAPBOX_API_ACCESS_TOKEN} // Pass an empty string for Mapbox API access token as MapTiler handles this.
         // initialViewState={{
         //   latitude: chosen.latitude,
         //   longitude: chosen.longitude,

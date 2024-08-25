@@ -13,7 +13,8 @@ root_dir = os.path.dirname(file_dir)
 data_dir = os.path.join(root_dir, "data")
 google_doc = os.getenv("GOOGLE_DOC_URL")
 # fetch CSV and read into df
-df = pd.read_csv(google_doc)
+df = pd.read_csv(google_doc)[['City','Country']]
+df['CityCountry'] = df['City'] + ', ' + df['Country']
 # %%
 def fetch_opencage_data(city):
     # API endpoint
@@ -50,14 +51,15 @@ def extract_key_data(city, data):
         return {}
 
 # %%
+# %%
 def main():
-    df['CityCountry'] = df['City'] + ', ' + df['Country']
     for city in df["CityCountry"]:
         data = fetch_opencage_data(city)
         save_results(city, data)
 # %%
 if __name__ == "__main__":
-    main()
+    None
+    # main()
 # %%
 cleaned_data = []
 for city in df["CityCountry"]:
@@ -66,7 +68,7 @@ for city in df["CityCountry"]:
         cleaned_data.append(extract_key_data(city, data))
 # %%
 
-df = df.merge(pd.DataFrame(cleaned_data), left_on="CityCountry", right_on="City")
+merged = df.merge(pd.DataFrame(cleaned_data), left_on="CityCountry", right_on="City")
 # %%
-df.to_csv(os.path.join(data_dir, "geocoded_cities.csv"), index=False)
+merged.to_csv(os.path.join(data_dir, "geocoded_cities.csv"), index=False)
 # %%
